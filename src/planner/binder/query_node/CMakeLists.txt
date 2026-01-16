@@ -6,6 +6,7 @@ add_library_unity(
   bind_recursive_cte_node.cpp
   bind_cte_node.cpp
   bind_statement_node.cpp
+  bind_dml_query_node.cpp
   bind_table_macro_node.cpp
   plan_query_node.cpp
   plan_select_node.cpp
