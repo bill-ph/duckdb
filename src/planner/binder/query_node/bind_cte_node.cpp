@@ -42,6 +42,9 @@ BoundStatement Binder::BindNode(QueryNode &node) {
 	case QueryNodeType::STATEMENT_NODE:
 		result = current_binder.get().BindNode(node.Cast<StatementNode>());
 		break;
+	case QueryNodeType::INSERT_QUERY_NODE:
+		result = current_binder.get().BindNode(node.Cast<InsertQueryNode>());
+		break;
 	default:
 		throw InternalException("Unsupported query node type");
 	}
@@ -116,9 +119,11 @@ BoundCTEData Binder::PrepareCTE(const string &ctename, CommonTableExpressionInfo
 	result.materialized = statement.materialized;
 	result.setop_index = GenerateTableIndex();
 
-	// Check if this CTE contains a DML statement (StatementNode wraps INSERT/UPDATE/DELETE)
+	// Check if this CTE contains a DML statement (INSERT/UPDATE/DELETE with RETURNING)
 	// DML CTEs must be bound even if unreferenced to ensure side effects occur
-	result.is_dml_cte = statement.query->node->type == QueryNodeType::STATEMENT_NODE;
+	auto node_type = statement.query->node->type;
+	result.is_dml_cte = node_type == QueryNodeType::INSERT_QUERY_NODE ||
+	                    node_type == QueryNodeType::STATEMENT_NODE; // Legacy support
 
 	// instead of eagerly binding the CTE here we add the CTE bind state to the list of CTE bindings
 	// the CTE is bound lazily - when referenced for the first time we perform the binding

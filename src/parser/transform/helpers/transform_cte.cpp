@@ -4,6 +4,7 @@
 #include "duckdb/parser/query_node/cte_node.hpp"
 #include "duckdb/parser/query_node/recursive_cte_node.hpp"
 #include "duckdb/parser/query_node/statement_node.hpp"
+#include "duckdb/parser/query_node/insert_query_node.hpp"
 #include "duckdb/parser/statement/select_statement.hpp"
 #include "duckdb/parser/statement/insert_statement.hpp"
 #include "duckdb/parser/statement/update_statement.hpp"
@@ -115,12 +116,22 @@ void Transformer::TransformCTE(duckdb_libpgquery::PGWithClause &de_with_clause, 
 			if (insert->returning_list.empty()) {
 				throw ParserException("INSERT in a CTE must have a RETURNING clause");
 			}
-			// Wrap the DML statement in a SelectStatement via StatementNode
+			// Create InsertQueryNode with fields from the InsertStatement
+			auto insert_node = make_uniq<InsertQueryNode>();
+			insert_node->catalog = insert->catalog;
+			insert_node->schema = insert->schema;
+			insert_node->table = insert->table;
+			insert_node->columns = std::move(insert->columns);
+			insert_node->default_values = insert->default_values;
+			insert_node->column_order = insert->column_order;
+			insert_node->select_statement = std::move(insert->select_statement);
+			insert_node->returning_list = std::move(insert->returning_list);
+			insert_node->on_conflict_info = std::move(insert->on_conflict_info);
+			insert_node->table_ref = std::move(insert->table_ref);
+			// Copy inner CTEs (for WITH ... INSERT ... syntax)
+			insert_node->cte_map = insert->cte_map.Copy();
 			info->query = make_uniq<SelectStatement>();
-			// Copy inner CTEs before moving the statement (for WITH ... INSERT ... syntax)
-			auto inner_ctes = insert->cte_map.Copy();
-			info->query->node = make_uniq<StatementNode>(std::move(insert));
-			info->query->node->cte_map = std::move(inner_ctes);
+			info->query->node = std::move(insert_node);
 			is_dml_cte = true;
 			break;
 		}

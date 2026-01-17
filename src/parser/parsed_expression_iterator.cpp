@@ -6,6 +6,8 @@
 #include "duckdb/parser/query_node/recursive_cte_node.hpp"
 #include "duckdb/parser/query_node/select_node.hpp"
 #include "duckdb/parser/query_node/set_operation_node.hpp"
+#include "duckdb/parser/query_node/insert_query_node.hpp"
+#include "duckdb/parser/statement/insert_statement.hpp"
 #include "duckdb/parser/tableref/list.hpp"
 
 namespace duckdb {
@@ -298,6 +300,36 @@ void ParsedExpressionIterator::EnumerateQueryNodeChildren(
 		}
 		break;
 	}
+	case QueryNodeType::INSERT_QUERY_NODE: {
+		auto &insert_node = node.Cast<InsertQueryNode>();
+		for (auto &expr : insert_node.returning_list) {
+			expr_callback(expr);
+		}
+		if (insert_node.table_ref) {
+			EnumerateTableRefChildren(*insert_node.table_ref, expr_callback, ref_callback);
+		}
+		if (insert_node.select_statement && insert_node.select_statement->node) {
+			EnumerateQueryNodeChildren(*insert_node.select_statement->node, expr_callback, ref_callback);
+		}
+		// Traverse on_conflict_info expressions
+		if (insert_node.on_conflict_info) {
+			if (insert_node.on_conflict_info->condition) {
+				expr_callback(insert_node.on_conflict_info->condition);
+			}
+			if (insert_node.on_conflict_info->set_info) {
+				for (auto &expr : insert_node.on_conflict_info->set_info->expressions) {
+					expr_callback(expr);
+				}
+				if (insert_node.on_conflict_info->set_info->condition) {
+					expr_callback(insert_node.on_conflict_info->set_info->condition);
+				}
+			}
+		}
+		break;
+	}
+	case QueryNodeType::STATEMENT_NODE:
+	case QueryNodeType::CTE_NODE:
+	case QueryNodeType::BOUND_SUBQUERY_NODE:
 	default:
 		throw NotImplementedException("QueryNode type not implemented for traversal");
 	}

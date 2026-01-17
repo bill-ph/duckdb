@@ -11,9 +11,10 @@ static bool ContainsWritableCTEInNode(const QueryNode &node);
 static bool ContainsWritableCTEInCTEMap(const CommonTableExpressionMap &cte_map) {
 	for (auto &entry : cte_map.map) {
 		auto &cte_info = entry.second;
-		// Check if this CTE's query node is a StatementNode (writable CTE)
+		// Check if this CTE's query node is a DML query node (writable CTE)
 		if (cte_info->query && cte_info->query->node) {
-			if (cte_info->query->node->type == QueryNodeType::STATEMENT_NODE) {
+			if (cte_info->query->node->type == QueryNodeType::STATEMENT_NODE ||
+			    cte_info->query->node->type == QueryNodeType::INSERT_QUERY_NODE) {
 				return true;
 			}
 			// Recursively check CTEs within this CTE's query
