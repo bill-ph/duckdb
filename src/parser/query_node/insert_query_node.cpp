@@ -1,9 +1,47 @@
 #include "duckdb/parser/query_node/insert_query_node.hpp"
 #include "duckdb/parser/statement/insert_statement.hpp"
+#include "duckdb/parser/statement/update_statement.hpp"
 #include "duckdb/parser/expression_util.hpp"
 #include "duckdb/common/serializer/serializer.hpp"
 
 namespace duckdb {
+
+static bool UpdateSetInfoEquals(const unique_ptr<UpdateSetInfo> &left, const unique_ptr<UpdateSetInfo> &right) {
+	if (left && right) {
+		if (left->columns != right->columns) {
+			return false;
+		}
+		if (!ExpressionUtil::ListEquals(left->expressions, right->expressions)) {
+			return false;
+		}
+		if (!ParsedExpression::Equals(left->condition, right->condition)) {
+			return false;
+		}
+		return true;
+	}
+	// One is null, the other is not
+	return left.get() == right.get();
+}
+
+static bool OnConflictInfoEquals(const unique_ptr<OnConflictInfo> &left, const unique_ptr<OnConflictInfo> &right) {
+	if (left && right) {
+		if (left->action_type != right->action_type) {
+			return false;
+		}
+		if (left->indexed_columns != right->indexed_columns) {
+			return false;
+		}
+		if (!UpdateSetInfoEquals(left->set_info, right->set_info)) {
+			return false;
+		}
+		if (!ParsedExpression::Equals(left->condition, right->condition)) {
+			return false;
+		}
+		return true;
+	}
+	// One is null, the other is not
+	return left.get() == right.get();
+}
 
 InsertQueryNode::InsertQueryNode()
     : QueryNode(QueryNodeType::INSERT_QUERY_NODE), default_values(false),
@@ -91,6 +129,10 @@ bool InsertQueryNode::Equals(const QueryNode *other_p) const {
 			return false;
 		}
 	} else if (select_statement || other.select_statement) {
+		return false;
+	}
+	// Compare on_conflict_info
+	if (!OnConflictInfoEquals(on_conflict_info, other.on_conflict_info)) {
 		return false;
 	}
 	return true;
